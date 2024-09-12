@@ -1,0 +1,618 @@
+
+
+'use client';
+
+import React, { useEffect, useState, useCallback } from 'react';
+import axios from 'axios';
+import { useDropzone } from 'react-dropzone';
+import Image from 'next/image';
+
+// مكون StyledDropdown المعدل للتحكم بواسطة زر الحفظ والتعديل
+const StyledDropdown = ({
+  apiUrl,
+  staticOptions,
+  optionKey,
+  displayKey,
+  onOptionChange,
+  defaultOptionText = 'Select an option', // قيمة افتراضية للنص
+  isEditable, // للتحكم في امكانية التعديل
+  selectedOption, // القيمة المحددة
+  setSelectedOption, // تعيين القيمة المحددة
+}) => {
+  const [options, setOptions] = useState([]);
+  const [isRotated, setIsRotated] = useState(false);
+
+  useEffect(() => {
+    if (apiUrl) {
+      const fetchOptions = async () => {
+        try {
+          const response = await axios.get(apiUrl);
+          if (response.data.success) {
+            setOptions(response.data.result.data);
+          }
+        } catch (error) {
+          console.error('Error fetching options:', error);
+        }
+      };
+
+      fetchOptions();
+    } else if (staticOptions) {
+      setOptions(staticOptions);
+    }
+  }, [apiUrl, staticOptions]);
+
+  const handleOptionChange = (e) => {
+    const selected = options.find(option => option[optionKey] === e.target.value);
+    setSelectedOption(e.target.value);
+    if (onOptionChange) {
+      onOptionChange(e.target.value, selected ? selected.id : '');
+    }
+  };
+
+  const handleFocus = () => {
+    setIsRotated(true);
+  };
+
+  const handleBlur = () => {
+    setIsRotated(false);
+  };
+
+  return (
+    <div className="relative w-full max-w-xs mx-auto mt-5">
+      <div className="relative">
+        <select
+          value={selectedOption}
+          onChange={handleOptionChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          className={`appearance-none block font-medium text-[16px] leading-[19.25px] w-full bg-[#FAFAFA] hover:bg-[#F0F0F0] rounded-lg py-2 px-3 focus:outline-none ${
+            !isEditable ? 'cursor-not-allowed bg-gray-200' : '' // تعطيل الـ Dropdown في حال عدم التعديل
+          }`}
+          disabled={!isEditable} // تعطيل الحقل إذا لم يكن قابلًا للتعديل
+        >
+          <option value="">{defaultOptionText}</option> {/* النص الافتراضي */}
+          {options.map((option) => (
+            <option key={option.id} value={option[optionKey]}>
+              {option[displayKey]}
+            </option>
+          ))}
+        </select>
+        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+          <Image
+            src="/raight.svg"
+            alt="arrow"
+            width={28}
+            height={28}
+            className={`transition-transform duration-300 ${isRotated ? 'rotate-90' : 'rotate-0'}`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const InputComponent = () => {
+  const [isEditable, setIsEditable] = useState(false); // للتحكم في حاله ال inputs جميعها
+  const [inputValues, setInputValues] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+  }); // قيم المدخلات
+  const [selectedOption, setSelectedOption] = useState(''); // للتحكم في قيمة الـ Dropdown المحددة
+  const [uploadedImage, setUploadedImage] = useState(null); // لتخزين الصورة المحملة
+  const [tempImage, setTempImage] = useState(null); // لتخزين الصورة المؤقتة قبل الحفظ
+
+  useEffect(() => {
+    axios
+      .get('https://do-env.xyz/api/v1/profile', {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      })
+      .then((response) => {
+        const { result } = response.data;
+        // تعيين القيم الافتراضية للمدخلات والصورة
+        setInputValues({
+          name: result.name || '',
+          email: result.email || '',
+          phone: result.phone || '',
+          address: result.address || '', // تأكد من أن `address` موجود في الاستجابة
+        });
+        setUploadedImage(result.image || null);
+      })
+      .catch((error) => {
+        console.error('هناك خطأ:', error);
+      });
+  }, []);
+
+  const handleEditClick = () => {
+    setIsEditable(true);
+  };
+
+  const handleSaveClick = async () => {
+    setIsEditable(false);
+    if (tempImage) {
+      setUploadedImage(tempImage); // تحديث الصورة المحملة بالصورة الجديدة المؤقتة
+      setTempImage(null); // مسح الصورة المؤقتة
+    }
+
+
+  
+    const formData = new FormData();
+    formData.append('name', inputValues.name);
+    formData.append('email', inputValues.email);
+    formData.append('phone', inputValues.phone);
+    // formData.append('profile[alt_phone]', inputValues.phone);
+    formData.append('address', inputValues.address);
+    if (selectedOption) {
+      formData.append('profile.city_id', Number(selectedOption)); // city_id
+    }
+    if (uploadedImage) {
+      formData.append('image', uploadedImage); // إضافة الصورة
+    }
+console.log(formData);
+    try {
+      const response = await axios.post('https://do-env.xyz/api/v1/update-Profile', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Accept': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      console.log('Response:', response.data);
+      if (response.data.success) {
+        console.log('Profile updated successfully!');
+      } else {
+        console.error('Failed to update profile:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setInputValues({ ...inputValues, [name]: value });
+  };
+
+  const handleOptionChange2 = (newOption, id) => {
+    console.log(`Selected option: ${newOption} with id: ${id}`);
+  };
+
+  const onDrop = useCallback((acceptedFiles) => {
+    if (acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        setTempImage({
+          preview: reader.result,
+          file: file
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    disabled: !isEditable, // تعطيل مربع التحميل عند عدم التعديل
+  });
+
+  return (
+    <div className="mt-10">
+      {/* مكون المدخل */}
+      {['name', 'email', 'phone', 'address'].map((field) => (
+        <div key={field} className="relative mb-8">
+          {/* label لعرض النص الافتراضي عند عدم وجود قيمه */}
+          <label
+            className={`absolute left-0 top-0 text-teal-600 transition-all duration-300 ${
+              inputValues[field] ? 'text-xs -translate-y-4' : 'text-lg'
+            }`}
+          >
+            {field.charAt(0).toUpperCase() + field.slice(1)}
+          </label>
+          {/* input */}
+          <input
+            type="text"
+            name={field}
+            className="border-b-2 border-gray-300 focus:outline-none p-1 mt-4 w-full"
+            value={inputValues[field]}
+            onChange={handleInputChange}
+            readOnly={!isEditable} // التحكم في حاله الكتابه داخل ال input
+          />
+        </div>
+      ))}
+
+      {/* عرض الصورة المحملة أو مربع إضافة الصورة */}
+      {isEditable ? (
+  <div className="mb-8">
+    {tempImage ? (
+      <div className="relative">
+        <Image
+          src={tempImage.preview}
+          alt="Temporary Preview"
+          width={full}
+          height={full}
+          className="w-full h-auto rounded-lg mb-4"
+        />
+        <div
+          {...getRootProps()}
+          className={`absolute inset-0 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer ${
+            isDragActive ? 'border-blue-500 bg-blue-100' : 'border-gray-300 bg-gray-100'
+          }`}
+        >
+          <input {...getInputProps()} />
+          <p>Drag & drop a new image, or click to select one</p>
+        </div>
+      </div>
+    ) : uploadedImage ? (
+      <Image src={uploadedImage} alt="Uploaded"   width={100}
+      height={100} className="w-full h-auto rounded-lg mb-8" />
+    ) : (
+      <div
+        {...getRootProps()}
+        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer ${
+          isDragActive ? 'border-blue-500 bg-blue-100' : 'border-gray-300 bg-gray-100'
+        }`}
+      >
+        <input {...getInputProps()} />
+        <p>Drag & drop an image, or click to select one</p>
+      </div>
+    )}
+  </div>
+) : uploadedImage ? (
+  <Image src={uploadedImage}   width={100}
+  height={100} alt="Uploaded" className="w-full h-auto rounded-lg mb-8" />
+) : null}
+
+
+      {/* مكون الـ Dropdown */}
+      <StyledDropdown
+        apiUrl="https://do-env.xyz/api/v1/city"
+        optionKey="name"
+        displayKey="name"
+        onOptionChange={handleOptionChange2}
+        defaultOptionText="Another City" // تغيير النص الافتراضي هنا
+        isEditable={isEditable} // تحكم في امكانية التعديل
+        selectedOption={selectedOption} // القيمة المحددة
+        setSelectedOption={setSelectedOption} // تعيين القيمة المحددة
+      />
+
+      {/* أزرار التعديل والحفظ */}
+      <div className="flex space-x-4">
+        <button
+          className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded mt-4"
+          onClick={handleEditClick}
+          disabled={isEditable} // منع التعديل عندما يكون بالفعل في وضع التعديل
+        >
+          تعديل
+        </button>
+        <button
+          className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded mt-4"
+          onClick={handleSaveClick}
+          disabled={!isEditable} // منع الحفظ عندما لا يكون في وضع التعديل
+        >
+          حفظ
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default InputComponent;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{
+    "total": 21776.00,
+    "type": "delivery",
+    "address_id": null,
+    "restaurant_table_id": null,
+    "branch_id": 2,
+    "user_id": 1,
+    "user_information": "{\"name\":\"John Doe\",\"phone\":\"1234567890\",\"address\":{\"city_id\":1,\"description\":\"Near the big park\",\"title\":\"Home\",\"latitude\":40.7128,\"longitude\":-74.0060,\"building_no\":\"123\",\"floor\":\"4\",\"department_no\":\"12A\",\"notes\":\"Ring the bell twice\"}}",
+    "order_details": [
+      {
+        "account_product_detail_id": 5,
+        "quantity": 2,
+        "quantity_total": 0.00,
+      //   "tax": 10.00,
+        "order_details_options": [
+          {
+            "option_extra_id": 3,
+            "quantity": 1,
+            "quantity_total": 0.00
+          },
+          {
+            "option_extra_id": 2,
+            "quantity": 1,
+            "quantity_total": 0.00
+          }
+        ]
+      },
+      {
+        "account_product_detail_id": 2,
+        "quantity": 1,
+        "quantity_total": 0.00,
+        "order_details_options": [
+          {
+            "option_extra_id": 1,
+            "quantity": 1,
+            "quantity_total": 0.00
+          }
+        ]
+      }
+    ]
+  }
+
+
+
+
+
+
+
+
+{
+    "city_id": 3,
+    "user_id": 3,
+    "type": "other",
+    "neme":"",
+    "phone_number":"",
+    "description": "",
+    "title": "",
+    "latitude": ,
+    "longitude": ,
+    "building_no": "",
+    "floor": "",
+    "department_no": "",
+    "notes": ""
+}
+--request POST \
+    "http://do-env.xyz/api/v1/update-Profile" \
+    --header "Content-Type: multipart/form-data" \
+    --header "Accept: application/json" \
+    --data "{
+     name="NAME",
+     email="invalid-email-format",
+     profile.city_id="999999",
+     profile.phone="111111111111111111111",
+     profile.address="address",
+     image="" 
+     }"
+
+
+curl --request POST \
+    "http://do-env.xyz/api/v1/product/favorites/delete" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json" \
+    --data "{
+    \"id\": \"1\"
+}"
+
+
+
+curl --request POST \
+    "https://do-env.xyz/api/v1/product/favorites/store" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json" \
+    --data "{
+    \"account_product_id\": 5,
+    \"user_id\": 11
+}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{
+    "branch": [
+        {
+            "id": 31,
+            "account_id": 5,
+            "title": "Murphy, Emard and Lockman",
+            "arabic_title": "sint",
+            "address": "945 Rowe Common Apt. 694\nGildabury, CA 29145-5027",
+            "arabic_address": "845 VonRueden Stream Suite 232\nHowellhaven, IA 99071-3309",
+            "lat_lng": "-31.238966,23.385931",
+            "open_at": "03:22:14",
+            "close_at": "13:01:50",
+            "features": "Est laborum maiores iste accusamus. Voluptas dolorem consequatur quo repellat aliquid. Dolorum quis nam nostrum molestias laudantium.",
+            "arabic_features": "Ut repellendus aperiam voluptates consequatur officia assumenda et. Quasi qui corporis at tenetur pariatur culpa voluptate. Sunt molestias rerum est qui. Modi voluptatibus architecto atque eos velit maiores.",
+            "default": 0
+        },
+        {
+            "id": 30,
+            "account_id": 1,
+            "title": "Greenholt Ltd",
+            "arabic_title": "facilis",
+            "address": "549 Orlando Road\nCassinfurt, NM 80966-0483",
+            "arabic_address": "99934 Bret Isle Apt. 788\nLake Dawnside, GA 22040-7420",
+            "lat_lng": "-37.772003,149.830102",
+            "open_at": "06:19:54",
+            "close_at": "19:42:40",
+            "features": "Occaecati est dolorem sed qui eaque voluptate deleniti quibusdam. Minus consequuntur qui optio velit in aut. Perferendis voluptatibus quia rerum molestiae iure a.",
+            "arabic_features": "Sunt provident deleniti magnam aut. Totam odio fugit adipisci blanditiis aut. Laborum quam illo et vitae et.",
+            "default": 0
+        },
+        {
+            "id": 29,
+            "account_id": 28,
+            "title": "Ankunding and Sons",
+            "arabic_title": "velit",
+            "address": "2131 Kunze Stravenue Apt. 791\nOrtizchester, NY 00622",
+            "arabic_address": "28390 Brooks Station\nBradtkeside, RI 51686",
+            "lat_lng": "-31.294973,-143.50324",
+            "open_at": "05:58:49",
+            "close_at": "11:21:30",
+            "features": "Ut occaecati unde possimus vel iure quia. Nam et blanditiis sed officia culpa. Voluptatibus voluptatem magni aut voluptas asperiores tempore.",
+            "arabic_features": "Quis necessitatibus et inventore nisi fugiat autem. Libero quis ducimus at aut quos. Ipsa officia est qui facilis aut vel cum molestias.",
+            "default": 1
+        },
+        { 
+            "id": 27,
+            "account_id": 35,
+            "title": "Gibson Inc",
+            "arabic_title": "eos",
+            "address": "292 Herzog Run\nAntwonville, NV 92015",
+            "arabic_address": "217 Jayde Stravenue\nLake Othaland, WV 22298-1099",
+            "lat_lng": "-28.277385,-179.100328",
+            "open_at": "21:59:21",
+            "close_at": "21:02:36",
+            "features": "Quidem facilis consequatur eveniet sed. Consequatur dignissimos ut voluptatibus sunt molestiae qui. Est libero et suscipit cumque laborum aut.",
+            "arabic_features": "Voluptatem itaque et et ea amet dolores. Voluptates molestias beatae autem consectetur. Recusandae odit aspernatur voluptatem ratione soluta quidem.",
+            "default": 0
+        },
+        {
+            "id": 28,
+            "account_id": 6,
+            "title": "Hickle-Waters",
+            "arabic_title": "et",
+            "address": "258 Johns Island\nShawnaview, FL 19379-2193",
+            "arabic_address": "138 Monserrat Fords Apt. 644\nKristoferview, LA 05033",
+            "lat_lng": "-19.210944,-19.202897",
+            "open_at": "16:49:36",
+            "close_at": "23:57:54",
+            "features": "Quidem blanditiis rerum veniam quia dolorem magni debitis. Dignissimos sit nostrum aut error rem. Vero optio dolore ipsum voluptatem ratione. Voluptatem perspiciatis sed rerum nisi.",
+            "arabic_features": "Doloribus aut consectetur quo ut nisi. Earum perspiciatis voluptas soluta ut ea asperiores sit. Omnis blanditiis quia doloremque omnis doloremque.",
+            "default": 0
+        },
+        {
+            "id": 25,
+            "account_id": 23,
+            "title": "Maggio-Wilkinson",
+            "arabic_title": "qui",
+            "address": "78991 Milford Pines\nDenesikshire, NH 86455",
+            "arabic_address": "920 Leola Ramp Suite 976\nCynthialand, CO 94474",
+            "lat_lng": "-36.773075,52.982687",
+            "open_at": "21:39:05",
+            "close_at": "10:51:04",
+            "features": "Iure dolor ipsam similique debitis odit modi. Minus architecto eius et non. Sapiente dolorum reiciendis quidem placeat qui facere.",
+            "arabic_features": "Pariatur recusandae quia vitae commodi quia voluptas repellat minima. Id minus rerum quaerat commodi nihil qui. Voluptatem accusantium voluptatibus vel enim qui.",
+            "default": 1
+        }
+    ],
+    "categories": [
+        {
+            "name": "all"
+        },
+        {
+            "name": "Main Dishes"
+        },
+        {
+            "name": "Appetizers"
+        },
+        {
+            "name": "Desserts"
+        },
+        {
+            "name": "Hot Beverages"
+        },
+        {
+            "name": "Salads"
+        },
+        {
+            "name": "Snacks"
+        }
+    ]
+}

@@ -1,0 +1,36 @@
+git config --list --show-origin
+git config --global user.name "John Doe"
+git config --global user.email johndoe@example.com
+.git/config
+git config 
+git config --global core.editor "'C:/Program Files/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
+git remote add origin https://github.com/DevelopersOptionsCo/e-menu-front.git
+ git init
+ git remote add origin https://github.com/DevelopersOptionsCo/e-menu-front.git
+
+
+
+
+
+kaled@gmail.com
+123
+
+dhjohndoe@example.com
+password123qq
+
+aaadhjohndoe@example.com
+password123qqvv
+
+vbmgyhjohndoe@example.com
+password123qqvvgg
+
+ugfyyhjohndoe@example.com
+password123qvgd
+
+vue@example.com
+password123qvgd
+
+next@example.com
+next14js
+
+
